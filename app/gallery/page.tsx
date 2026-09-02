@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PromptCard } from "@/app/_components/prompt-card";
+import { GallerySearch } from "@/app/_components/gallery-search";
 import type { PromptWithImages } from "@/lib/types";
 
 export const metadata: Metadata = {
-  title: "Dashboard",
+  title: "Gallery",
 };
 
-export default async function HomePage() {
+export default async function GalleryPage(props: PageProps<"/gallery">) {
   const supabase = await createClient();
 
   if (!supabase) {
@@ -24,42 +24,41 @@ export default async function HomePage() {
     redirect("/login");
   }
 
-  const { data: prompts } = await supabase
+  const searchParams = await props.searchParams;
+  const q = typeof searchParams?.q === "string" ? searchParams.q : "";
+  const source =
+    typeof searchParams?.source === "string" ? searchParams.source : "";
+
+  let query = supabase
     .from("prompts")
     .select("*, generated_images(*)")
-    .order("created_at", { ascending: false })
-    .limit(10);
+    .order("created_at", { ascending: false });
 
+  if (q) {
+    query = query.ilike("prompt_text", `%${q}%`);
+  }
+  if (source) {
+    query = query.eq("ai_source", source);
+  }
+
+  const { data: prompts } = await query;
   const list = (prompts ?? []) as PromptWithImages[];
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-10">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Your prompts</h1>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            {list.length > 0
-              ? `You have saved ${list.length} recent prompt${list.length === 1 ? "" : "s"}.`
-              : "Nothing saved yet."}
-          </p>
-        </div>
-        <Link
-          href="/add"
-          className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-zinc-900"
-        >
-          + New
-        </Link>
-      </div>
+      <h1 className="text-2xl font-semibold tracking-tight">Gallery</h1>
+      <p className="mt-1 mb-6 text-sm text-zinc-500 dark:text-zinc-400">
+        Every prompt you&rsquo;ve saved.
+      </p>
+
+      <GallerySearch q={q} source={source} />
 
       {list.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-zinc-300 p-10 text-center dark:border-zinc-700">
           <p className="text-zinc-500 dark:text-zinc-400">
-            When the AI gives you a prompt you want to keep, capture it from
-            the{" "}
-            <Link href="/add" className="underline">
-              Add page
-            </Link>
-            .
+            {q || source
+              ? "No prompts match your filters."
+              : "No prompts saved yet."}
           </p>
         </div>
       ) : (
