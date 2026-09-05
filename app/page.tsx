@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PromptCard } from "@/app/_components/prompt-card";
-import type { PromptWithImages } from "@/lib/types";
+import { StatsCard } from "@/app/_components/stats-card";
+import { enrichPromptsWithUrls } from "@/lib/images";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -24,13 +25,32 @@ export default async function HomePage() {
     redirect("/login");
   }
 
-  const { data: prompts } = await supabase
-    .from("prompts")
-    .select("*, generated_images(*)")
-    .order("created_at", { ascending: false })
-    .limit(10);
+  const [promptsRes, countRes, favRes, imgCountRes] = await Promise.all([
+    supabase
+      .from("prompts")
+      .select("*, generated_images(*)")
+      .order("created_at", { ascending: false })
+      .limit(10),
+    supabase
+      .from("prompts")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id),
+    supabase
+      .from("prompts")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("favorite", true),
+    supabase
+      .from("generated_images")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id),
+  ]);
 
-  const list = (prompts ?? []) as PromptWithImages[];
+  const totalPrompts = countRes.count ?? 0;
+  const favorites = favRes.count ?? 0;
+  const totalImages = imgCountRes.count ?? 0;
+
+  const list = await enrichPromptsWithUrls(supabase, promptsRes.data ?? []);
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-10">
@@ -38,8 +58,8 @@ export default async function HomePage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Your prompts</h1>
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            {list.length > 0
-              ? `You have saved ${list.length} recent prompt${list.length === 1 ? "" : "s"}.`
+            {totalPrompts > 0
+              ? `You have saved ${totalPrompts} prompt${totalPrompts === 1 ? "" : "s"}.`
               : "Nothing saved yet."}
           </p>
         </div>
@@ -49,6 +69,12 @@ export default async function HomePage() {
         >
           + New
         </Link>
+      </div>
+
+      <div className="mb-8 grid grid-cols-3 gap-3">
+        <StatsCard label="Prompts" value={totalPrompts} href="/gallery" />
+        <StatsCard label="Images" value={totalImages} href="/gallery" />
+        <StatsCard label="Favorites" value={favorites} href="/gallery?fav=1" />
       </div>
 
       {list.length === 0 ? (

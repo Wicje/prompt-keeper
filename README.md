@@ -9,6 +9,19 @@ It fits this workflow:
 3. You capture the prompt + your reference + your final generated image into Prompt Keeper.
 4. Later, you search your saved prompts/gallery to reuse them.
 
+## Features
+
+- **Save prompts + images** — capture the prompt, the reference image/URL, and your generated image(s) together.
+- **Tags & favorites** — organize prompts with tags; star the ones you love.
+- **Search & filters** — full-text search, filter by AI source, tag, or favorites.
+- **Edit & delete** — fix typos, replace the reference image, or remove prompts/images anytime.
+- **Re-use** — one-click copy of any prompt to paste straight back into an image tool.
+- **Batch import** — paste many prompts at once (one per line).
+- **Backup (JSON export)** — download everything as JSON anytime.
+- **Stats** — total prompts, images, and favorites on the dashboard.
+- **Reference images** — uploads are stored privately and image URLs are refreshed automatically so they never expire.
+- **Old URLs can't expire** — signed URLs are regenerated on every render.
+
 ## How capturing works
 
 Full auto-scraping of ChatGPT/Gemini is blocked by them, so this uses a **reliable semi-auto flow**: a **bookmarklet** that one-click pre-fills the form with whatever text you select.
@@ -29,15 +42,22 @@ You can also open `/add?prompt=YOUR_PROMPT` directly, or just use the form manua
 
 ```
 app/
-  page.tsx            # Dashboard (recent prompts)
-  add/page.tsx        # Capture form (+ ?prompt=&source=&ai= prefill for the bookmarklet)
-  gallery/page.tsx    # Searchable gallery of every saved prompt+image
+  page.tsx            # Dashboard (stats + recent prompts)
+  add/page.tsx        # Capture form + batch import (+ ?prompt=&source=&ai= prefill for the bookmarklet)
+  edit/[id]/page.tsx  # Edit a saved prompt
+  gallery/page.tsx    # Searchable gallery with tags/favorites/source filters
   login/page.tsx      # Sign in / sign up
-  api/prompts/route.ts# Uploads images + saves prompt rows
+  api/prompts/route.ts        # Create prompt + reference/generated image
+  api/prompts/[id]/route.ts   # Update (PATCH) / delete (DELETE) a prompt
+  api/prompts/batch/route.ts  # Batch import
+  api/images/route.ts         # Add an image to a prompt
+  api/images/[id]/route.ts    # Delete an image
+  api/export/route.ts         # JSON backup
 lib/
   supabase/server.ts  # Server-side Supabase client (reads cookies)
   supabase/client.ts  # Browser Supabase client
   actions/auth.ts     # signUp / signIn / signOut
+  images.ts           # Upload / delete / auto-refresh signed URLs
 proxy.ts              # Session refresh (Next.js middleware replacement)
 supabase/schema.sql   # Tables + storage policies (run this in Supabase)
 ```
@@ -98,5 +118,5 @@ In the app, open the **Add page** (`/add`) — it shows a **"Copy the bookmarkle
 
 ## Data model
 
-- `prompts` — id, user_id, prompt_text, notes, ai_source (chatgpt/gemini/grok/other), source_url (reference image), created_at
+- `prompts` — id, user_id, prompt_text, notes, ai_source (chatgpt/gemini/grok/other), source_url (reference link), reference image (storage path + url), tags, favorite, created_at, updated_at
 - `generated_images` — id, user_id, prompt_id, storage_path, public_url, caption, created_at

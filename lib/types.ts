@@ -7,7 +7,12 @@ export interface Prompt {
   notes: string | null;
   ai_source: AiSource | string | null;
   source_url: string | null;
+  reference_storage_path: string | null;
+  reference_public_url: string | null;
+  tags: string[];
+  favorite: boolean;
   created_at: string;
+  updated_at: string;
 }
 
 export interface GeneratedImage {

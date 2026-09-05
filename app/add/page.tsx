@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import CaptureForm from "@/app/_components/capture-form";
 import CaptureHelper from "@/app/_components/capture-helper";
+import BatchImport from "@/app/_components/batch-import";
 
 export const metadata: Metadata = {
   title: "Capture prompt",
@@ -37,11 +38,20 @@ export default async function AddPage(props: PageProps<"/add">) {
         Paste the prompt the AI gave you, add the reference and your generated
         image, and save.
       </p>
+
       <CaptureForm
         prefillPrompt={prompt}
         prefillSource={source}
         prefillAiSource={ai}
       />
+
+      <section className="mt-12">
+        <h2 className="text-lg font-semibold">Batch import</h2>
+        <p className="mb-4 mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+          Paste many prompts at once — one per line.
+        </p>
+        <BatchImport />
+      </section>
 
       <div className="mt-12">
         <CaptureHelper />

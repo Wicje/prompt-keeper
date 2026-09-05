@@ -1,39 +1,33 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { uploadImage } from "@/lib/images";
+import { getAuthedClient } from "@/lib/api-helpers";
 
 export const maxDuration = 30;
 
-interface SavePromptBody {
+interface ImageInput {
+  dataUrl: string;
+  fileName: string;
+  mimeType: string;
+  caption?: string;
+}
+
+export interface SavePromptBody {
   promptText: string;
   notes?: string;
   aiSource?: string | null;
   sourceUrl?: string | null;
-  // Uploaded generated image as Data URL (e.g. from FileReader) - optional
-  generatedImage?: {
-    dataUrl: string;
-    fileName: string;
-    mimeType: string;
-    caption?: string;
-  } | null;
+  tags?: string[];
+  favorite?: boolean;
+  referenceImage?: ImageInput | null;
+  generatedImage?: ImageInput | null;
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-
-  if (!supabase) {
-    return NextResponse.json(
-      { error: "Supabase is not configured" },
-      { status: 500 }
-    );
-  }
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  const authed = await getAuthedClient();
+  if (!authed) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const { supabase, user } = authed;
 
   let body: SavePromptBody;
   try {
@@ -50,10 +44,32 @@ export async function POST(request: Request) {
     );
   }
 
-  const {
-    data: prompt,
-    error: promptError,
-  } = await supabase
+  // Upload the reference image first so we have its storage path to store.
+  let reference_storage_path: string | null = null;
+  let reference_public_url: string | null = null;
+  if (body.referenceImage?.dataUrl) {
+    const up = await uploadImage(
+      supabase,
+      user.id,
+      body.referenceImage.dataUrl,
+      body.referenceImage.fileName,
+      body.referenceImage.mimeType
+    );
+    if (up.error) {
+      return NextResponse.json(
+        { error: up.error || "Reference image upload failed" },
+        { status: 500 }
+      );
+    }
+    reference_storage_path = up.path;
+    reference_public_url = up.signedUrl;
+  }
+
+  const tags = Array.isArray(body.tags)
+    ? body.tags.map((t) => String(t).trim()).filter(Boolean)
+    : [];
+
+  const { data: prompt, error: promptError } = await supabase
     .from("prompts")
     .insert({
       user_id: user.id,
@@ -61,6 +77,10 @@ export async function POST(request: Request) {
       notes: body.notes?.trim() || null,
       ai_source: body.aiSource || null,
       source_url: body.sourceUrl?.trim() || null,
+      reference_storage_path,
+      reference_public_url,
+      tags,
+      favorite: Boolean(body.favorite),
     })
     .select()
     .single();
@@ -72,87 +92,37 @@ export async function POST(request: Request) {
     );
   }
 
-  let image: Awaited<
-    ReturnType<typeof insertImage>
-  > | null = null;
+  let image: null | { id: string; public_url: string } = null;
 
   if (body.generatedImage?.dataUrl) {
-    const result = await insertImage(supabase, user.id, prompt.id, body.generatedImage);
-    if (result.error) {
+    const up = await uploadImage(
+      supabase,
+      user.id,
+      body.generatedImage.dataUrl,
+      body.generatedImage.fileName,
+      body.generatedImage.mimeType
+    );
+    if (up.error) {
       return NextResponse.json(
-        { error: result.error, promptSaved: true },
+        { error: up.error, promptSaved: true },
         { status: 500 }
       );
     }
-    image = result;
+    const { data: inserted, error: insertError } = await supabase
+      .from("generated_images")
+      .insert({
+        user_id: user.id,
+        prompt_id: prompt.id,
+        storage_path: up.path,
+        public_url: up.signedUrl,
+        caption: body.generatedImage.caption?.trim() || null,
+      })
+      .select()
+      .single();
+    if (!insertError && inserted) {
+      image = { id: inserted.id, public_url: inserted.public_url };
+    }
   }
 
   return NextResponse.json({ prompt, image });
-}
-
-async function insertImage(
-  supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>,
-  userId: string,
-  promptId: string,
-  img: NonNullable<SavePromptBody["generatedImage"]>
-) {
-  const { dataUrl, fileName, mimeType, caption } = img;
-
-  const base64 = dataUrl.split(",")[1] ?? "";
-  const fileBuffer = Buffer.from(base64, "base64");
-
-  const safeName = (fileName || "image")
-    .replace(/[^a-zA-Z0-9._-]/g, "_")
-    .slice(0, 80);
-  const extension = safeName.includes(".")
-    ? safeName.split(".").pop()
-    : (mimeType.split("/")[1] ?? "png");
-  const storagePath = `${userId}/${crypto.randomUUID()}.${extension}`;
-
-  const { error: uploadError } = await supabase.storage
-    .from("images")
-    .upload(storagePath, fileBuffer, {
-      contentType: mimeType,
-      upsert: false,
-    });
-
-  if (uploadError) {
-    return { error: uploadError.message || "Image upload failed" };
-  }
-
-  const {
-    data: urlData,
-    error: urlError,
-  } = await supabase.storage.from("images").createSignedUrl(
-    storagePath,
-    60 * 60 * 24 * 365 // 1 year signed URL
-  );
-
-  const publicUrl = urlData?.signedUrl ?? "";
-  if (urlError && !publicUrl) {
-    return { error: urlError.message || "Failed to get image URL" };
-  }
-
-  const { data: inserted, error: insertError } = await supabase
-    .from("generated_images")
-    .insert({
-      user_id: userId,
-      prompt_id: promptId,
-      storage_path: storagePath,
-      public_url: publicUrl,
-      caption: caption?.trim() || null,
-    })
-    .select()
-    .single();
-
-  if (insertError || !inserted) {
-    return {
-      error: insertError?.message ?? "Failed to record generated image",
-    };
-  }
-
-  return {
-    id: inserted.id,
-    public_url: publicUrl,
-  };
 }
