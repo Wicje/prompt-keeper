@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { tgGetMe } from "@/lib/telegram";
+import { tgGetMe, ensureTelegramWebhook } from "@/lib/telegram";
 import IntegrationsClient from "@/app/_components/integrations-client";
 
 export const metadata: Metadata = {
@@ -16,6 +16,10 @@ export default async function IntegrationsPage() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  // If a bot token is configured, make sure Telegram is pointed at this
+  // deployment so the very first message is delivered.
+  await ensureTelegramWebhook();
 
   const me = await tgGetMe();
   const botUsername = me?.username ?? null;
