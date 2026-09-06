@@ -9,6 +9,7 @@ create table if not exists public.prompts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   prompt_text text not null,
+  title text, -- optional human-friendly title shown in cards / share pages
   notes text,
   ai_source text, -- 'chatgpt' | 'gemini' | 'grok' | 'other' | null
   source_url text, -- optional external link (e.g. Pinterest reference page)
@@ -16,9 +17,19 @@ create table if not exists public.prompts (
   reference_public_url text,   -- latest known URL for the reference image
   tags text[] not null default '{}',
   favorite boolean not null default false,
+  share_token text, -- secret token for a public read-only share page (/p/<token>)
+  shared_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Keep new installs and existing installs in sync (idempotent).
+alter table public.prompts add column if not exists title text;
+alter table public.prompts add column if not exists share_token text;
+alter table public.prompts add column if not exists shared_at timestamptz;
+
+create unique index if not exists prompts_share_token_idx on public.prompts (share_token)
+  where share_token is not null;
 
 -- keep updated_at fresh on edits
 create or replace function public.set_updated_at()
@@ -39,9 +50,9 @@ create trigger prompts_set_updated_at
 alter table public.prompts enable row level security;
 
 drop policy if exists "Users can read their own prompts" on public.prompts;
-create policy "Users can read their own prompts"
+create policy "Anyone can read shared prompts, users can read their own"
   on public.prompts for select
-  using (auth.uid() = user_id);
+  using (auth.uid() = user_id or share_token is not null);
 
 drop policy if exists "Users can insert their own prompts" on public.prompts;
 create policy "Users can insert their own prompts"

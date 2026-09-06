@@ -36,6 +36,7 @@ export default function CaptureForm({
   const isEdit = Boolean(promptToEdit);
 
   const [prompt, setPrompt] = useState(promptToEdit?.prompt_text ?? prefillPrompt ?? "");
+  const [title, setTitle] = useState(promptToEdit?.title ?? "");
   const [notes, setNotes] = useState(promptToEdit?.notes ?? "");
   const [sourceUrl, setSourceUrl] = useState(
     promptToEdit?.source_url ?? prefillSource ?? ""
@@ -114,6 +115,7 @@ export default function CaptureForm({
     try {
       const payload: Record<string, unknown> = {
         promptText: prompt,
+        title,
         notes,
         aiSource,
         sourceUrl,
@@ -176,6 +178,7 @@ export default function CaptureForm({
       setDuplicate(false);
       setSavedId(data.prompt?.id ?? null);
       setPrompt("");
+      setTitle("");
       setNotes("");
       setSourceUrl("");
       setTagsInput("");
@@ -281,6 +284,19 @@ export default function CaptureForm({
             className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900"
           />
         </div>
+      </div>
+
+      <div>
+        <label htmlFor="title" className="mb-1 block text-sm font-medium">
+          Title (optional)
+        </label>
+        <input
+          id="title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Something to remember this prompt by…"
+          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900"
+        />
       </div>
 
       <div>

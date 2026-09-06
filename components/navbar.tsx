@@ -37,6 +37,12 @@ export default async function Navbar() {
               Gallery
             </Link>
             <Link
+              href="/explore"
+              className="font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+            >
+              Explore
+            </Link>
+            <Link
               href="/integrations"
               className="font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
             >
@@ -45,12 +51,20 @@ export default async function Navbar() {
             <SignOutButton />
           </nav>
         ) : (
-          <Link
-            href="/login"
-            className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-zinc-900"
-          >
-            Sign in
-          </Link>
+          <nav className="flex items-center gap-4 text-sm">
+            <Link
+              href="/explore"
+              className="font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+            >
+              Explore
+            </Link>
+            <Link
+              href="/login"
+              className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-zinc-900"
+            >
+              Sign in
+            </Link>
+          </nav>
         )}
       </div>
     </header>

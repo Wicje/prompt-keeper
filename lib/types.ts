@@ -4,6 +4,7 @@ export interface Prompt {
   id: string;
   user_id: string;
   prompt_text: string;
+  title: string | null;
   notes: string | null;
   ai_source: AiSource | string | null;
   source_url: string | null;
@@ -11,6 +12,8 @@ export interface Prompt {
   reference_public_url: string | null;
   tags: string[];
   favorite: boolean;
+  share_token: string | null;
+  shared_at: string | null;
   created_at: string;
   updated_at: string;
 }

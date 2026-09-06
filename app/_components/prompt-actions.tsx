@@ -12,6 +12,8 @@ export function PromptActions({ prompt }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [shareBusy, setShareBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const addImageRef = useRef<HTMLInputElement>(null);
@@ -22,6 +24,59 @@ export function PromptActions({ prompt }: Props) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     });
+  }
+
+  async function sharePrompt() {
+    if (shareBusy) return;
+    setShareBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/prompts/${prompt.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ share: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Share failed");
+        return;
+      }
+      const token = data.prompt?.share_token;
+      if (token && typeof navigator !== "undefined" && navigator.clipboard) {
+        const url = `${window.location.origin}/p/${token}`;
+        await navigator.clipboard.writeText(url);
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 1500);
+      }
+      router.refresh();
+    } catch {
+      setError("Network error while sharing.");
+    } finally {
+      setShareBusy(false);
+    }
+  }
+
+  async function unsharePrompt() {
+    if (shareBusy) return;
+    setShareBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/prompts/${prompt.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ share: false }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Unshare failed");
+        return;
+      }
+      router.refresh();
+    } catch {
+      setError("Network error while unsharing.");
+    } finally {
+      setShareBusy(false);
+    }
   }
 
   function toggleFavorite() {
@@ -139,6 +194,35 @@ export function PromptActions({ prompt }: Props) {
           className="hidden"
         />
       </label>
+
+      {prompt.share_token ? (
+        <span className="flex items-center gap-1.5">
+          <button
+            onClick={sharePrompt}
+            disabled={shareBusy}
+            className="rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-200 disabled:opacity-50 dark:bg-emerald-900 dark:text-emerald-300"
+            title="Copy the share link"
+          >
+            {copiedLink ? "Link copied!" : "✓ Shared"}
+          </button>
+          <button
+            onClick={unsharePrompt}
+            disabled={shareBusy}
+            className="rounded-full bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-500 hover:bg-zinc-200 disabled:opacity-50 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
+          >
+            Unshare
+          </button>
+        </span>
+      ) : (
+        <button
+          onClick={sharePrompt}
+          disabled={shareBusy}
+          className="rounded-full bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-800 hover:bg-zinc-200 disabled:opacity-50 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+          title="Create a public link for this prompt"
+        >
+          {shareBusy ? "Sharing…" : "Share"}
+        </button>
+      )}
 
       <span className="flex-1" />
 

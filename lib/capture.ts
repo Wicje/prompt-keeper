@@ -3,6 +3,7 @@ import { uploadImageBytes, getSignedUrl } from "@/lib/images";
 
 export interface CapturedPrompt {
   promptText: string;
+  title?: string | null;
   notes?: string;
   aiSource?: string | null;
   sourceUrl?: string | null;
@@ -138,6 +139,7 @@ export async function capturePrompt(
     .insert({
       user_id: userId,
       prompt_text: promptText,
+      title: input.title?.trim() || null,
       notes: input.notes?.trim() || null,
       ai_source: input.aiSource || null,
       source_url: input.sourceUrl?.trim() || null,

@@ -16,11 +16,13 @@ export async function PATCH(request: Request, ctx: RouteContext) {
 
   let body: {
     promptText?: string;
+    title?: string | null;
     notes?: string;
     aiSource?: string | null;
     sourceUrl?: string | null;
     tags?: string[];
     favorite?: boolean;
+    share?: boolean;
     referenceImage?: {
       dataUrl: string;
       fileName: string;
@@ -37,7 +39,7 @@ export async function PATCH(request: Request, ctx: RouteContext) {
   // Ensure this prompt belongs to the user.
   const { data: existing } = await supabase
     .from("prompts")
-    .select("id, reference_storage_path")
+    .select("id, reference_storage_path, share_token, shared_at")
     .eq("id", id)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -53,6 +55,7 @@ export async function PATCH(request: Request, ctx: RouteContext) {
     if (!t) return NextResponse.json({ error: "promptText is required" }, { status: 400 });
     patch.prompt_text = t;
   }
+  if (typeof body.title === "string") patch.title = body.title.trim() || null;
   if (typeof body.notes === "string") patch.notes = body.notes.trim() || null;
   if ("aiSource" in body) patch.ai_source = body.aiSource || null;
   if (typeof body.sourceUrl === "string") patch.source_url = body.sourceUrl.trim() || null;
@@ -60,6 +63,17 @@ export async function PATCH(request: Request, ctx: RouteContext) {
     patch.tags = body.tags.map((t) => String(t).trim()).filter(Boolean);
   }
   if (typeof body.favorite === "boolean") patch.favorite = body.favorite;
+
+  if (typeof body.share === "boolean") {
+    if (body.share) {
+      // Reuse an existing token so the share link is stable across toggles.
+      patch.share_token = existing.share_token ?? crypto.randomUUID();
+      patch.shared_at = existing.shared_at ?? new Date().toISOString();
+    } else {
+      patch.share_token = null;
+      patch.shared_at = null;
+    }
+  }
 
   if (body.removeReference || body.referenceImage?.dataUrl) {
     if (existing.reference_storage_path) {

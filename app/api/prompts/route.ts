@@ -13,6 +13,7 @@ interface ImageInput {
 
 export interface SavePromptBody {
   promptText: string;
+  title?: string | null;
   notes?: string;
   aiSource?: string | null;
   sourceUrl?: string | null;
@@ -88,6 +89,7 @@ export async function POST(request: Request) {
     .insert({
       user_id: user.id,
       prompt_text: promptText,
+      title: body.title?.trim() || null,
       notes: body.notes?.trim() || null,
       ai_source: body.aiSource || null,
       source_url: body.sourceUrl?.trim() || null,

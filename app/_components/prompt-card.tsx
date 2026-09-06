@@ -47,6 +47,12 @@ export function PromptCard({ prompt }: { prompt: PromptWithImages }) {
         <span className="text-xs text-zinc-400">{formatDate(prompt.created_at)}</span>
       </div>
 
+      {prompt.title && (
+        <h2 className="mb-2 text-base font-semibold text-zinc-900 dark:text-zinc-100">
+          {prompt.title}
+        </h2>
+      )}
+
       <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-800 dark:text-zinc-200">
         {prompt.prompt_text}
       </p>

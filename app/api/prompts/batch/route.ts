@@ -11,6 +11,7 @@ export async function POST(request: Request) {
   let body: {
     items: {
       promptText: string;
+      title?: string | null;
       notes?: string;
       aiSource?: string | null;
       sourceUrl?: string | null;
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
     .map((it) => ({
       user_id: user.id,
       prompt_text: String(it.promptText ?? "").trim(),
+      title: it.title?.trim() || null,
       notes: it.notes?.trim() || null,
       ai_source: it.aiSource || null,
       source_url: it.sourceUrl?.trim() || null,

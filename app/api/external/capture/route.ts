@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 
 interface CaptureBody {
   promptText?: string;
+  title?: string;
   notes?: string;
   aiSource?: string;
   sourceUrl?: string;
@@ -57,6 +58,7 @@ export async function POST(request: Request) {
 
   const result = await capturePrompt(supabase, userId, {
     promptText: body.promptText ?? "",
+    title: body.title,
     notes: body.notes,
     aiSource: body.aiSource,
     sourceUrl: body.sourceUrl,

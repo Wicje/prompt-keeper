@@ -38,7 +38,9 @@ export default async function GalleryPage(props: PageProps<"/gallery">) {
     .order("created_at", { ascending: false });
 
   if (q) {
-    query = query.ilike("prompt_text", `%${q}%`);
+    query = query.or(
+      `prompt_text.ilike.%${q}%,title.ilike.%${q}%`
+    );
   }
   if (source) {
     query = query.eq("ai_source", source);
