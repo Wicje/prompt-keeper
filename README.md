@@ -24,13 +24,33 @@ It fits this workflow:
 
 ## How capturing works
 
-Full auto-scraping of ChatGPT/Gemini is blocked by them, so this uses a **reliable semi-auto flow**: a **bookmarklet** that one-click pre-fills the form with whatever text you select.
+Full auto-scraping of ChatGPT/Gemini is blocked by them, so this uses a **reliable semi-auto flow**: capture from the tools you already use, in order of least friction:
 
-- On ChatGPT/Gemini/Grok, **select the prompt text** with your mouse.
-- Click your **"Capture prompt"** bookmark (installed once).
-- A new tab opens with the prompt already filled in — add an image and hit **Save**.
+1. **Telegram bot** — paste any prompt into a chat (or send a photo + caption) and it's in your vault instantly, from phone or desktop. Set the bot up under **Integrations → Telegram bot**: get a token from [@BotFather](https://t.me/botfather), add it as `TELEGRAM_BOT_TOKEN`, then get a link code from the app and send `/link <CODE>` to the bot.
+2. **Chrome/Edge extension** — right-click any selection on ChatGPT, Gemini, Grok or any site and choose **"Save selection to Prompt Keeper"**. Load the unpacked extension from the `chrome-extension/` folder (Chrome → Extensions → Developer mode → Load unpacked), then optionally set a capture key in its options for instant API saves.
+3. **Custom ChatGPT action** — a GPT whose last step posts its final prompt to your vault. See "Custom GPT setup" below.
+4. **Bookmarklet** — one-click pre-fills the capture form with whatever text you select (from the `/add` page).
 
-You can also open `/add?prompt=YOUR_PROMPT` directly, or just use the form manually.
+Every path goes through the same private endpoint with a per-user **capture key** (`/api/external/capture`), and duplicates are detected automatically, so re-saving the same prompt is harmless.
+
+### Custom GPT setup
+
+1. On the **Integrations** page of the app, press **Generate my capture key** (shows once, ends in `pk_…`).
+2. In ChatGPT, create a custom GPT with this system prompt:
+
+   > When you produce the image prompt for the user, also save it to their vault using the `savePrompt` action. Keep the conversation natural — saving should be silent and quick. Use the prompt text verbatim.
+
+3. Under **Configure → Actions → Create new action**, use:
+   - Authentication: `API Key`, in header `Authorization: `, value = your capture key.
+   - Import the schema from `docs/gpt-action-openapi.json` (or paste the endpoint spec from the file).
+
+### Telegram bot
+
+- `GET /api/telegram/webhook` is set automatically to the deployment when the app first receives a message; the webhook payload is verified with `TELEGRAM_WEBHOOK_SECRET`.
+- Plain text message → saved as a new prompt.
+- Photo + caption → saved as a prompt with the photo as the reference image.
+- `/recent` shows your last 5 prompts; `/link <CODE>` connects a chat to your account.
+- Requires `TELEGRAM_BOT_TOKEN` (and optionally `TELEGRAM_WEBHOOK_SECRET`).
 
 ## Tech
 

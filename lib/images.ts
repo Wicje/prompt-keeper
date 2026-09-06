@@ -5,23 +5,20 @@ const SIGNED_URL_SECONDS = 60 * 60 * 24 * 7; // 7 days; re-signed on every rende
 
 type Client = NonNullable<SupabaseClient>;
 
-/** Upload a data-URL image into the user's folder and return its storage path + signed URL. */
-export async function uploadImage(
+export async function uploadImageBytes(
   supabase: Client,
   userId: string,
-  dataUrl: string,
+  fileBuffer: Buffer,
   fileName: string,
   mimeType: string
 ): Promise<{ path: string; signedUrl: string; error?: string }> {
-  const base64 = dataUrl.split(",")[1] ?? "";
-  const fileBuffer = Buffer.from(base64, "base64");
-
   const safeName = (fileName || "image")
     .replace(/[^a-zA-Z0-9._-]/g, "_")
     .slice(0, 80);
-  const extension = safeName.includes(".")
-    ? safeName.split(".").pop()
-    : (mimeType.split("/")[1] ?? "png");
+  const extension =
+    safeName.includes(".") && safeName.split(".").pop()
+      ? String(safeName.split(".").pop())
+      : (mimeType.split("/")[1] ?? "png");
   const storagePath = `${userId}/${crypto.randomUUID()}.${extension}`;
 
   const { error: uploadError } = await supabase.storage
@@ -39,6 +36,18 @@ export async function uploadImage(
     path: storagePath,
     signedUrl: await getSignedUrl(supabase, storagePath),
   };
+}
+
+/** Upload a data-URL image into the user's folder and return its storage path + signed URL. */
+export async function uploadImage(
+  supabase: Client,
+  userId: string,
+  dataUrl: string,
+  fileName: string,
+  mimeType: string
+): Promise<{ path: string; signedUrl: string; error?: string }> {
+  const base64 = dataUrl.split(",")[1] ?? "";
+  return uploadImageBytes(supabase, userId, Buffer.from(base64, "base64"), fileName, mimeType);
 }
 
 export async function getSignedUrl(

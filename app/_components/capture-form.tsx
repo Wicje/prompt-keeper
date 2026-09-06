@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { AiSource, Prompt } from "@/lib/types";
 
@@ -39,9 +40,16 @@ export default function CaptureForm({
   const [sourceUrl, setSourceUrl] = useState(
     promptToEdit?.source_url ?? prefillSource ?? ""
   );
-  const [aiSource, setAiSource] = useState<AiSource>(
-    (promptToEdit?.ai_source as AiSource) || (prefillAiSource as AiSource) || "chatgpt"
-  );
+  const [aiSource, setAiSource] = useState<AiSource>(() => {
+    const fromEdit = promptToEdit?.ai_source as AiSource | null | undefined;
+    if (fromEdit) return fromEdit;
+    if (prefillAiSource) return prefillAiSource as AiSource;
+    if (typeof localStorage !== "undefined") {
+      const saved = localStorage.getItem("pk_last_source") as AiSource | null;
+      if (saved && SOURCES.some((s) => s.value === saved)) return saved;
+    }
+    return "chatgpt";
+  });
   const [tagsInput, setTagsInput] = useState((promptToEdit?.tags ?? []).join(", "));
   const [favorite, setFavorite] = useState(promptToEdit?.favorite ?? false);
 
@@ -53,9 +61,16 @@ export default function CaptureForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const [duplicate, setDuplicate] = useState(false);
 
+  const promptRef = useRef<HTMLTextAreaElement>(null);
   const generatedInputRef = useRef<HTMLInputElement>(null);
   const referenceInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isEdit) promptRef.current?.focus();
+  }, [isEdit]);
 
   // For edit mode: any existing reference image that should be replaced/removed.
   const hasExistingReference = Boolean(promptToEdit?.reference_storage_path);
@@ -86,7 +101,7 @@ export default function CaptureForm({
   }
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setBusy(true);
     setError(null);
     setSaved(false);
@@ -151,6 +166,15 @@ export default function CaptureForm({
         return;
       }
 
+      if (data.duplicate) {
+        setDuplicate(true);
+        setSaved(true);
+        setSavedId(data.promptId ?? null);
+        return;
+      }
+
+      setDuplicate(false);
+      setSavedId(data.prompt?.id ?? null);
       setPrompt("");
       setNotes("");
       setSourceUrl("");
@@ -177,11 +201,43 @@ export default function CaptureForm({
     }
   }
 
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
+      setDuplicate(false);
+      setSaved(false);
+      void handleSubmit(e as unknown as React.FormEvent);
+    }
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form
+      onSubmit={handleSubmit}
+      onKeyDown={handleKeyDown}
+      className="space-y-5"
+    >
       {saved && !error && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
-          Saved! {isEdit ? "" : "Ready for the next one."}
+          {duplicate ? (
+            <>
+              Already saved —{" "}
+              {savedId ? (
+                <Link
+                  href={`/edit/${savedId}`}
+                  className="font-medium underline"
+                >
+                  open it
+                </Link>
+              ) : (
+                "no new entry added"
+              )}
+              .
+            </>
+          ) : isEdit ? (
+            "Saved!"
+          ) : (
+            "Saved ✓ Ready for the next one."
+          )}
         </div>
       )}
       {error && (
@@ -192,21 +248,26 @@ export default function CaptureForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label htmlFor="aiSource" className="mb-1 block text-sm font-medium">
-            From which AI?
-          </label>
-          <select
-            id="aiSource"
-            value={aiSource}
-            onChange={(e) => setAiSource(e.target.value as AiSource)}
-            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900"
-          >
+          <span className="mb-2 block text-sm font-medium">AI source</span>
+          <div className="flex flex-wrap gap-2">
             {SOURCES.map((s) => (
-              <option key={s.value} value={s.value}>
+              <button
+                key={s.value}
+                type="button"
+                onClick={() => {
+                  setAiSource(s.value);
+                  try { localStorage.setItem("pk_last_source", s.value); } catch {}
+                }}
+                className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  aiSource === s.value
+                    ? "border-zinc-900 bg-zinc-900 text-white dark:border-white dark:bg-white dark:text-zinc-900"
+                    : "border-zinc-300 bg-white text-zinc-700 hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+                }`}
+              >
                 {s.label}
-              </option>
+              </button>
             ))}
-          </select>
+          </div>
         </div>
         <div>
           <label htmlFor="tags" className="mb-1 block text-sm font-medium">
@@ -383,6 +444,11 @@ export default function CaptureForm({
       >
         {busy ? "Saving…" : isEdit ? "Save changes" : "Save prompt"}
       </button>
+      {!isEdit && (
+        <p className="text-center text-xs text-zinc-400 dark:text-zinc-500">
+          Tip: Ctrl/Cmd + Enter saves
+        </p>
+      )}
     </form>
   );
 }

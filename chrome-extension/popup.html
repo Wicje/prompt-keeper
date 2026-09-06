@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Prompt Keeper</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 0;
+        width: 380px;
+        padding: 14px;
+        background: #fff;
+        color: #111;
+      }
+      h1 {
+        font-size: 15px;
+        margin: 0 0 8px;
+      }
+      textarea {
+        width: 100%;
+        box-sizing: border-box;
+        min-height: 120px;
+        padding: 8px;
+        border: 1px solid #d4d4d4;
+        border-radius: 8px;
+        font: inherit;
+        font-size: 13px;
+        resize: vertical;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      button {
+        flex: 1;
+        padding: 9px 0;
+        border: 0;
+        border-radius: 999px;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      #save {
+        background: #18181b;
+        color: #fff;
+      }
+      #save:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      #open {
+        background: #f4f4f5;
+        color: #111;
+      }
+      a.settings {
+        display: block;
+        margin-top: 10px;
+        font-size: 12px;
+        color: #52525b;
+        text-align: center;
+      }
+      #status {
+        margin-top: 8px;
+        font-size: 12px;
+        color: #16a34a;
+        white-space: pre-wrap;
+      }
+      #status.error {
+        color: #dc2626;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Save to Prompt Keeper</h1>
+    <textarea id="prompt" placeholder="Selected text from the current tab appears here — edit it, then save."></textarea>
+    <div class="row">
+      <button id="save" disabled>Save to vault</button>
+      <button id="open">Open app</button>
+    </div>
+    <div id="status"></div>
+    <a class="settings" href="#" id="settings">Configure base URL & API key</a>
+    <script src="popup.js"></script>
+  </body>
+</html>

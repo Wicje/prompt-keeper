@@ -1,0 +1,95 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Prompt Keeper capture",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://prompt-keeper-teal.vercel.app"
+    }
+  ],
+  "paths": {
+    "/api/external/capture": {
+      "post": {
+        "operationId": "savePrompt",
+        "summary": "Save a prompt to the user's Prompt Keeper vault",
+        "description": "Saves a prompt the AI just generated. Returns duplicate=true when the exact same prompt text was already saved, which is fine. Always call this right after producing a final image prompt.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaptureRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved (or already saved)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaptureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid capture key"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "CaptureRequest": {
+        "type": "object",
+        "required": ["promptText"],
+        "properties": {
+          "promptText": {
+            "type": "string",
+            "description": "The image-generation prompt the AI produced"
+          },
+          "aiSource": {
+            "type": "string",
+            "description": "Which AI produced it"
+          },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "favorite": {
+            "type": "boolean"
+          },
+          "sourceUrl": {
+            "type": "string",
+            "description": "Optional reference page URL"
+          },
+          "referenceImageUrl": {
+            "type": "string",
+            "description": "Optional direct URL to a reference image to store alongside the prompt"
+          }
+        }
+      },
+      "CaptureResponse": {
+        "type": "object",
+        "properties": {
+          "ok": { "type": "boolean" },
+          "promptId": { "type": "string" },
+          "duplicate": { "type": "boolean" },
+          "error": { "type": "string" }
+        }
+      }
+    }
+  },
+  "security": [{ "BearerAuth": [] }]
+}

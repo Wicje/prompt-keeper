@@ -44,6 +44,20 @@ export async function POST(request: Request) {
     );
   }
 
+  // Skip duplicates silently so re-saving the same prompt is harmless.
+  const { data: existing } = await supabase
+    .from("prompts")
+    .select("id")
+    .eq("user_id", user.id)
+    .ilike("prompt_text", promptText)
+    .maybeSingle();
+  if (existing) {
+    return NextResponse.json(
+      { duplicate: true, promptId: existing.id },
+      { status: 200 }
+    );
+  }
+
   // Upload the reference image first so we have its storage path to store.
   let reference_storage_path: string | null = null;
   let reference_public_url: string | null = null;
@@ -124,5 +138,5 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({ prompt, image });
+  return NextResponse.json({ prompt, image, duplicate: false });
 }

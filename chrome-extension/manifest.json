@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Prompt Keeper",
+  "version": "1.0.0",
+  "description": "Save selected text as a prompt to your Prompt Keeper vault, from ChatGPT, Gemini, Grok or any site.",
+  "permissions": ["storage", "contextMenus", "activeTab", "scripting"],
+  "background": { "service_worker": "background.js" },
+  "action": {
+    "default_title": "Save to Prompt Keeper",
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html"
+}
