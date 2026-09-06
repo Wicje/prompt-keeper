@@ -157,3 +157,40 @@ export async function capturePrompt(
 }
 
 export { getSignedUrl };
+
+/**
+ * Attaches a generated image to an existing prompt (used by the Telegram bot).
+ * Returns ok:false without inserting when the upload fails.
+ */
+export async function attachGeneratedImage(
+  supabase: ServiceClient,
+  userId: string,
+  promptId: string,
+  buffer: Buffer,
+  mimeType: string,
+  caption?: string
+): Promise<{ ok: boolean; error?: string }> {
+  const up = await uploadImageBytes(
+    supabase,
+    userId,
+    buffer,
+    "generated",
+    mimeType
+  );
+  if (up.error) {
+    return { ok: false, error: up.error };
+  }
+
+  const { error } = await supabase.from("generated_images").insert({
+    user_id: userId,
+    prompt_id: promptId,
+    storage_path: up.path,
+    public_url: up.signedUrl,
+    caption: caption?.trim() || null,
+  });
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
+}

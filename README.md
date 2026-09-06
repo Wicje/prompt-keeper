@@ -48,8 +48,10 @@ Every path goes through the same private endpoint with a per-user **capture key*
 
 - `GET /api/telegram/webhook` is set automatically to the deployment when the app first receives a message; the webhook payload is verified with `TELEGRAM_WEBHOOK_SECRET`.
 - Plain text message → saved as a new prompt.
-- Photo + caption → saved as a prompt with the photo as the reference image.
-- `/recent` shows your last 5 prompts; `/link <CODE>` connects a chat to your account.
+- Photo + caption → saved as a NEW prompt with the photo as the reference image.
+- Photo without a caption → attached as a generated image to your latest prompt.
+- Photo with caption `/img 2 Label` → attached to prompt `#2` from `/recent`, with `Label` as the image caption.
+- `/recent` shows your last 5 prompts (numbered); `/link <CODE>` connects a chat to your account; `/help` lists everything.
 - Requires `TELEGRAM_BOT_TOKEN` (and optionally `TELEGRAM_WEBHOOK_SECRET`).
 
 ## Tech

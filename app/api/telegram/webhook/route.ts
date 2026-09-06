@@ -6,7 +6,7 @@ import {
   ensureTelegramWebhook,
   tgUserForChat,
 } from "@/lib/telegram";
-import { capturePrompt } from "@/lib/capture";
+import { capturePrompt, attachGeneratedImage } from "@/lib/capture";
 
 export const maxDuration = 30;
 
@@ -26,10 +26,15 @@ const HELP = [
   "",
   "/link <CODE>  connect this chat to your account (code from the Integrations page)",
   "/recent      show your last 5 prompts",
+  "/img <N>     attach the next photo as a generated image to prompt #N (from /recent)",
   "/help        this message",
   "",
   "Any other message is saved to your vault as a new prompt.",
-  "Send a photo with a caption and it is saved with the photo as the reference image.",
+  "",
+  "Photos:",
+  "• photo + prompt caption  → saved as a NEW prompt with the photo as reference",
+  "• photo without a caption → attached as a generated image to your latest prompt",
+  "• photo + caption \"/img 2\" → attached to prompt #2, caption kept as the image label",
 ].join("\n");
 
 function truncate(text: string, max = 90): string {
@@ -96,7 +101,7 @@ async function handleRecent(supabase: NonNullable<ReturnType<typeof createServic
   }
   const lines = data.map(
     (p, i) =>
-      `${i + 1}. ${p.created_at.slice(0, 16).replace("T", " ")} — ${truncate(p.prompt_text, 60)}`
+      `#${i + 1}. ${p.created_at.slice(0, 16).replace("T", " ")} — ${truncate(p.prompt_text, 60)}`
   );
   await reply(chatId, ["Your last prompts:", ...lines].join("\n"));
 }
@@ -166,6 +171,121 @@ async function handlePhoto(
   await reply(chatId, `Saved ✓ with reference image (${truncate(caption)}).`);
 }
 
+/** Downloads a photo and attaches it as a generated image to the given prompt. */
+async function attachPhotoToPrompt(
+  supabase: NonNullable<ReturnType<typeof createServiceClient>>,
+  chatId: number,
+  userId: string,
+  fileId: string,
+  promptId: string,
+  caption?: string
+): Promise<boolean> {
+  const buffer = await tgDownloadFile(fileId);
+  if (!buffer) {
+    await reply(chatId, "Could not download that image. Try again.");
+    return false;
+  }
+  const isPng = buffer[0] === 0x89 && buffer[1] === 0x50;
+  const mimeType = isPng ? "image/png" : "image/jpeg";
+  const result = await attachGeneratedImage(
+    supabase,
+    userId,
+    promptId,
+    buffer,
+    mimeType,
+    caption
+  );
+  if (!result.ok) {
+    await reply(
+      chatId,
+      `Could not save the image: ${result.error ?? "unknown error"}`
+    );
+    return false;
+  }
+  return true;
+}
+
+/** Photo without a caption / without /img -> attach to the latest prompt. */
+async function attachToMostRecent(
+  supabase: NonNullable<ReturnType<typeof createServiceClient>>,
+  chatId: number,
+  fileId: string
+) {
+  const userId = await tgUserForChat(supabase, chatId);
+  if (!userId) {
+    await reply(chatId, "This chat is not linked yet. Send /link <CODE> to connect.");
+    return;
+  }
+  const { data } = await supabase
+    .from("prompts")
+    .select("id, prompt_text")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!data) {
+    await reply(
+      chatId,
+      "You don't have any saved prompts yet — send me a prompt text first, then send the photo."
+    );
+    return;
+  }
+  const ok = await attachPhotoToPrompt(supabase, chatId, userId, fileId, data.id);
+  if (ok) {
+    await reply(
+      chatId,
+      `Attached as a generated image to the latest prompt ✓ — ${truncate(data.prompt_text)}`
+    );
+  }
+}
+
+/** /img <N> [caption] sent with a photo -> attach to prompt #N from /recent. */
+async function handleImg(
+  supabase: NonNullable<ReturnType<typeof createServiceClient>>,
+  chatId: number,
+  fileId: string,
+  arg: string
+) {
+  const m = arg.match(/^(\d+)(?:\s+([\s\S]+))?$/);
+  if (!m) {
+    await reply(
+      chatId,
+      "Usage: send a photo whose caption starts with /img <N>, where N is the prompt number from /recent."
+    );
+    return;
+  }
+  const idx = Number(m[1]);
+  const imageCaption = m[2];
+
+  const userId = await tgUserForChat(supabase, chatId);
+  if (!userId) {
+    await reply(chatId, "This chat is not linked yet. Send /link <CODE> to connect.");
+    return;
+  }
+  const { data } = await supabase
+    .from("prompts")
+    .select("id, prompt_text")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(5);
+  if (!data || data.length < idx) {
+    await reply(chatId, `I can only see ${data?.length ?? 0} prompts. Send /recent first.`);
+    return;
+  }
+  const target = data[idx - 1];
+  const ok = await attachPhotoToPrompt(
+    supabase,
+    chatId,
+    userId,
+    fileId,
+    target.id,
+    imageCaption
+  );
+  if (ok) {
+    await reply(chatId, `Attached to #${idx} ✓ — ${truncate(target.prompt_text)}`);
+  }
+}
+
 async function handleUpdate(
   supabase: NonNullable<ReturnType<typeof createServiceClient>>,
   update: TelegramUpdate
@@ -190,6 +310,12 @@ async function handleUpdate(
       case "/recent":
         await handleRecent(supabase, chatId);
         return;
+      case "/img":
+        await reply(
+          chatId,
+          "Send /img with a photo: post a picture whose caption starts with /img <N> (the prompt number from /recent)."
+        );
+        return;
       default:
         await reply(chatId, "Unknown command. Send /help");
     }
@@ -197,11 +323,19 @@ async function handleUpdate(
   }
 
   if (photo) {
-    if (!caption) {
-      await reply(chatId, "Add a caption with the prompt and send it again — the photo becomes the reference image.");
+    // Photo sent with a caption starting with /img -> attach to prompt #N.
+    const imgCommand = caption.match(/^\/img\s+(.+)/);
+    if (imgCommand) {
+      await handleImg(supabase, chatId, photo.file_id, imgCommand[1]);
       return;
     }
-    await handlePhoto(supabase, chatId, photo.file_id, caption);
+    // Photo with a normal caption -> new prompt with the photo as reference.
+    if (caption) {
+      await handlePhoto(supabase, chatId, photo.file_id, caption);
+      return;
+    }
+    // Photo without a caption -> attach as a generated image to the latest prompt.
+    await attachToMostRecent(supabase, chatId, photo.file_id);
     return;
   }
 
